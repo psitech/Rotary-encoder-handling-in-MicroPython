@@ -1,0 +1,47 @@
+# Rotary encoder pin A & B states:
+# CW   CCW 
+# 11   11   detent
+# 10   01
+# 00   00
+# 01   10
+# 11   11   detent
+
+from machine import Pin
+
+# Global variables
+encoder_count = 0
+previous_state = 0b11     # both pins HIGH
+last_printed_count = 0
+
+# Configure pins with pull-up resistors
+pinA = Pin(15, Pin.IN, Pin.PULL_UP)
+pinB = Pin(14, Pin.IN, Pin.PULL_UP)
+
+# IRQ handler
+def encoder_isr(pin):
+    global encoder_count, previous_state
+    
+    a_value = pinA.value()
+    b_value = pinB.value()
+    
+    current_state = (a_value << 1) | b_value              # merge both pin values into 2-bit state
+
+    if (previous_state << 2) | current_state == 0b0111:   # 01 11  is the valid CW state transition
+        encoder_count += 1
+    if (previous_state << 2) | current_state == 0b1011:   # 10 11  is the valid CCW state transition
+        encoder_count -= 1    
+#    print(a_value, b_value, "{:02b}".format(previous_state), "{:02b}".format(current_state))
+    
+    previous_state = current_state
+
+# Interrupt on rising & falling edge
+pinA.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=encoder_isr)
+pinB.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=encoder_isr)
+
+while True:
+    current_count = encoder_count
+    
+    if current_count != last_printed_count:
+        print("Count:", current_count)
+        last_printed_count = current_count
+
